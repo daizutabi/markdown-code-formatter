@@ -81,7 +81,7 @@ async function format() {
 	const document = editor.document;
 	const intentionalInvalidRange = new vscode.Range(0, 0, document.lineCount, 0);
 	const range = document.validateRange(intentionalInvalidRange);
-	const text = document.getText(range);
+	let text = document.getText(range);
 	const splitted = split(text);
 	const languages = splitted[0];
 	const sources = splitted[1];
@@ -92,9 +92,9 @@ async function format() {
 		const uri = base.with({ path: base.path + '~' + index.toString() });
 		promises.push(formatBlock(uri, sources[index], language));
 	});
-	const formatted = (await Promise.all(promises)).join('');
+	text = (await Promise.all(promises)).join('');
 	editor.edit(editBuilder => {
-		editBuilder.replace(range, formatted);
+		editBuilder.replace(range, text);
 	});
 }
 
