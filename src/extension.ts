@@ -59,6 +59,9 @@ async function execute(commands: string[], path: string) {
 }
 
 async function format(uri: vscode.Uri, text: string, langauge: string): Promise<string> {
+	if (langauge === '') {
+		return text;
+	}
 	const data = Buffer.from(text, 'utf8');
 	await vscode.workspace.fs.writeFile(uri, data);
 	const path = uri.fsPath;
@@ -66,6 +69,7 @@ async function format(uri: vscode.Uri, text: string, langauge: string): Promise<
 		await execute(['isort', 'black'], path);
 	}
 	const formatted = await vscode.workspace.fs.readFile(uri);
+	vscode.workspace.fs.delete(uri);
 	return Buffer.from(formatted).toString('utf8');
 }
 
@@ -76,23 +80,30 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 		const document = editor.document;
-		const invalidRange = new vscode.Range(0, 0, document.lineCount, 0);
-		const fullRange = document.validateRange(invalidRange);
-		const text = document.getText(fullRange);
+		const intentionalInvalidRange = new vscode.Range(0, 0, document.lineCount, 0);
+		const range = document.validateRange(intentionalInvalidRange);
+		const text = document.getText(range);
 		const splitted = split(text);
 		const languages = splitted[0];
 		const sources = splitted[1];
 
 		const base = document.uri;
-		languages.forEach((lang, index) => {
-			console.log(lang, index.toString());
+		const promises: Promise<string>[] = [];
+		languages.forEach((language, index) => {
+			const uri = base.with({ path: base.path + '~' + index.toString() });
+			console.log(language, uri.path);
+			promises.push(format(uri, sources[index], language));
+		});
+		Promise.all(promises).then(result => {
+			console.log(result);
+
 		});
 		// const uri = base.with({ path: base.path + '~' });
 		// text = await format(uri, text, 'python');
 		// console.log(text);
 
 		editor.edit(editBuilder => {
-			editBuilder.replace(fullRange, text);
+			editBuilder.replace(range, text);
 		});
 	});
 
