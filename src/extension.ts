@@ -2,19 +2,19 @@ import * as cp from 'child_process';
 import * as util from 'util';
 import * as vscode from 'vscode';
 
-const codeRegexp = new RegExp(/^(`{3,}|~{3,})(.+?\r?\n)([^]+?)^(\1)$/, 'mu');
+const fencedCodeRegExp = new RegExp(/^(`{3,}|~{3,})(.+?\r?\n)([^]+?)^(\1)$/, 'mu');
 
 function getLanguage(text: string): string {
-	let langauge = text.trim();
-	if (langauge.startsWith('{')) {
-		for (const x of langauge.slice(1, langauge.length - 1).split(' ')) {
+	const language = text.trim();
+	if (language.startsWith('{')) {
+		for (const x of language.slice(1, language.length - 1).split(' ')) {
 			if (x.startsWith('.')) {
 				return x.slice(1);
 			}
 		}
 		return '';
 	}
-	return langauge.split(' ')[0];
+	return language.split(' ')[0];
 }
 
 function split(text: string): [string[], string[]] {
@@ -24,7 +24,7 @@ function split(text: string): [string[], string[]] {
 	const languages: string[] = [];
 	const sources: string[] = [];
 	while (true) {
-		const result = codeRegexp.exec(text.slice(index));
+		const result = fencedCodeRegExp.exec(text.slice(index));
 		if (result === null) {
 			break;
 		}
@@ -58,14 +58,14 @@ async function execute(commands: string[], path: string) {
 	}
 }
 
-async function format(uri: vscode.Uri, text: string, langauge: string): Promise<string> {
-	if (langauge === '') {
+async function formatBlock(uri: vscode.Uri, text: string, language: string): Promise<string> {
+	if (language === '') {
 		return text;
 	}
 	const data = Buffer.from(text, 'utf8');
 	await vscode.workspace.fs.writeFile(uri, data);
 	const path = uri.fsPath;
-	if (langauge === 'python') {
+	if (language === 'python') {
 		await execute(['isort', 'black'], path);
 	}
 	const formatted = await vscode.workspace.fs.readFile(uri);
@@ -73,39 +73,33 @@ async function format(uri: vscode.Uri, text: string, langauge: string): Promise<
 	return Buffer.from(formatted).toString('utf8');
 }
 
-export function activate(context: vscode.ExtensionContext) {
-	let disposable = vscode.commands.registerCommand('markdown-code-formatter.formatCode', async function () {
-		const editor = vscode.window.activeTextEditor;
-		if (!editor) {
-			return;
-		}
-		const document = editor.document;
-		const intentionalInvalidRange = new vscode.Range(0, 0, document.lineCount, 0);
-		const range = document.validateRange(intentionalInvalidRange);
-		const text = document.getText(range);
-		const splitted = split(text);
-		const languages = splitted[0];
-		const sources = splitted[1];
+async function format() {
+	const editor = vscode.window.activeTextEditor;
+	if (!editor) {
+		return;
+	}
+	const document = editor.document;
+	const intentionalInvalidRange = new vscode.Range(0, 0, document.lineCount, 0);
+	const range = document.validateRange(intentionalInvalidRange);
+	const text = document.getText(range);
+	const splitted = split(text);
+	const languages = splitted[0];
+	const sources = splitted[1];
 
-		const base = document.uri;
-		const promises: Promise<string>[] = [];
-		languages.forEach((language, index) => {
-			const uri = base.with({ path: base.path + '~' + index.toString() });
-			console.log(language, uri.path);
-			promises.push(format(uri, sources[index], language));
-		});
-		Promise.all(promises).then(result => {
-			console.log(result);
-
-		});
-		// const uri = base.with({ path: base.path + '~' });
-		// text = await format(uri, text, 'python');
-		// console.log(text);
-
-		editor.edit(editBuilder => {
-			editBuilder.replace(range, text);
-		});
+	const base = document.uri;
+	const promises: Promise<string>[] = [];
+	languages.forEach((language, index) => {
+		const uri = base.with({ path: base.path + '~' + index.toString() });
+		promises.push(formatBlock(uri, sources[index], language));
 	});
+	const formatted = (await Promise.all(promises)).join('');
+	editor.edit(editBuilder => {
+		editBuilder.replace(range, formatted);
+	});
+}
 
+
+export function activate(context: vscode.ExtensionContext) {
+	let disposable = vscode.commands.registerCommand('markdown-code-formatter.formatCode', format);
 	context.subscriptions.push(disposable);
 }
