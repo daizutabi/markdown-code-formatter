@@ -1,7 +1,9 @@
 {
   "name": "markdown-code-formatter",
   "displayName": "Markdown Code Formatter",
+  "publisher": "daizutabi",
   "description": "Format Markdown code",
+  "repository": "https://github.com/daizutabi/markdown-code-formatter",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.52.0"
@@ -10,14 +12,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:markdown-code-formatter.helloWorld"
+    "onCommand:markdown-code-formatter.formatCode"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "markdown-code-formatter.helloWorld",
-        "title": "Hello World"
+        "command": "markdown-code-formatter.formatCode",
+        "title": "Markdown Code Formatter: Format code"
       }
     ]
   },
